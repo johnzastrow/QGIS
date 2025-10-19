@@ -18,6 +18,15 @@ REM or run the packaged postinstall:
 REM   call etc\postinstall\setup.bat
 
 REM Call OSGeo4W.bat to set up the environment
+REM Parse args for non-interactive flags
+set "AUTO_YES=0"
+if not "%~1"=="" (
+    for %%A in (%*) do (
+        if /I "%%~A"=="--yes" set "AUTO_YES=1"
+        if /I "%%~A"=="-y" set "AUTO_YES=1"
+    )
+)
+
 call "%~dp0\OSGeo4W.bat"
 if %ERRORLEVEL% neq 0 (
     echo Failed to set up OSGeo4W environment.
@@ -31,8 +40,30 @@ set QGIS_BIN_DIR=%OSGEO4W_ROOT%\apps\qgis\bin
 if not exist "%QGIS_BIN_DIR%\qgis_app.dll" (
     echo ERROR: required DLL not found: "%QGIS_BIN_DIR%\qgis_app.dll"
     echo This usually means the installation templates were not patched for this path.
-    echo Run "bin\\reinit.bat" from the repository root to recreate generated wrappers and env files.
-    exit /b 1
+    if "%AUTO_YES%"=="1" (
+        set "_ans=Y"
+    ) else (
+        echo Would you like to run "bin\\reinit.bat" now to attempt to fix this (Y/N)?
+        set /p _ans=Choice: 
+    )
+    if /I "%_ans%"=="Y" (
+        if exist "%~dp0bin\reinit.bat" (
+            echo Running bin\reinit.bat ...
+            call "%~dp0bin\reinit.bat"
+            echo Reinit complete; retrying launch...
+        ) else (
+            echo reinit.bat not found at "%~dp0bin\reinit.bat". Please run it manually from the repo root.
+            exit /b 1
+        )
+    ) else (
+        echo Aborting launch. Run "bin\\reinit.bat" to fix paths and try again.
+        exit /b 1
+    )
+    REM After reinit attempt, verify DLL again
+    if not exist "%QGIS_BIN_DIR%\qgis_app.dll" (
+        echo ERROR: qgis_app.dll still not found after reinit. Aborting.
+        exit /b 1
+    )
 )
 
 echo Checking PATH for qgis bin directory...
