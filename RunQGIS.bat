@@ -27,6 +27,9 @@ if not "%~1"=="" (
     )
 )
 
+REM Call the OSGeo4W environment bootstrap. This sets a minimal set of
+REM environment variables by sourcing `bin\o4w_env.bat` and the files under
+REM `etc\ini`. We need this to compute `%OSGEO4W_ROOT%` and other paths.
 call "%~dp0\OSGeo4W.bat"
 if %ERRORLEVEL% neq 0 (
     echo Failed to set up OSGeo4W environment.
@@ -38,8 +41,12 @@ if %ERRORLEVEL% neq 0 (
 REM --- sanity checks: ensure apps\qgis\bin is available and qgis_app.dll exists
 set QGIS_BIN_DIR=%OSGEO4W_ROOT%\apps\qgis\bin
 if not exist "%QGIS_BIN_DIR%\qgis_app.dll" (
+    REM If the main QGIS DLL is missing the runtime will fail with opaque
+    REM loader errors. Detect this early and offer to (re)run the reinit
+    REM helper which patches templates and recreates wrapper env files.
     echo ERROR: required DLL not found: "%QGIS_BIN_DIR%\qgis_app.dll"
-    echo This usually means the installation templates were not patched for this path.
+    echo This usually means the generated templates/wrappers were not
+    echo patched for this location (common when the tree was copied).
     if "%AUTO_YES%"=="1" (
         set "_ans=Y"
     ) else (
@@ -48,6 +55,7 @@ if not exist "%QGIS_BIN_DIR%\qgis_app.dll" (
     )
     if /I "%_ans%"=="Y" (
         if exist "%~dp0bin\reinit.bat" (
+            REM Run the reinit helper which will run textreplace and setup.
             echo Running bin\reinit.bat ...
             call "%~dp0bin\reinit.bat"
             echo Reinit complete; retrying launch...
@@ -69,6 +77,10 @@ if not exist "%QGIS_BIN_DIR%\qgis_app.dll" (
 echo Checking PATH for qgis bin directory...
 echo %PATH% | findstr /I /C:"%QGIS_BIN_DIR%" >nul
 if errorlevel 1 (
+    REM The wrapper `bin\qgis.bat` will add the right bin directory to PATH
+    REM when launched, but if you invoke `qgis-bin.exe` directly from some
+    REM shells you may get missing-DLL errors. The warning helps diagnose
+    REM that situation and points to the reinit helper.
     echo WARNING: "%QGIS_BIN_DIR%" is not on PATH for this shell.
     echo The wrapper "bin\qgis.bat" will add it when called, but if you still see loader errors run "bin\\reinit.bat".
 )
@@ -77,6 +89,9 @@ rem Launch QGIS with specific profile and project using the wrapper
 rem `bin\qgis.bat` configures PATH/QT_PLUGIN_PATH and then starts the
 rem real binary. Always prefer calling the wrapper when running from this
 rem portable tree.
+REM Launch via the provided wrapper to ensure all runtime environment vars
+REM (QT_PLUGIN_PATH, QGIS_PREFIX_PATH, VSI_CACHE, etc.) are set in this
+REM process before starting the actual `qgis-bin.exe`.
 call "%~dp0\bin\qgis.bat" --profiles-path "%~dp0\Profiles" --profile "Viewer2" --project "geopackage:%~dp0\data.gpkg?projectName=main_project"
 
 if %ERRORLEVEL% neq 0 (
