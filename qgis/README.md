@@ -8,6 +8,8 @@ This repository contains the QGIS project, a powerful open-source geographic inf
   - `qgis.bat`: Environment wrapper for setting up necessary environment variables.
   - `RunQGIS.bat`: Script to launch QGIS with the correct environment setup.
   - `reinit.bat`: Script to reinitialize the QGIS environment.
+  
+Note: If you copy this tree to a new path or machine, run `bin\reinit.bat` once to patch templates and recreate generated wrappers (e.g. `bin\setup.bat`).
 
 - **apps/**: Contains application-specific files.
   - **Python312/**: Shipped Python runtime for QGIS.

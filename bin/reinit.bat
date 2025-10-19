@@ -1,4 +1,44 @@
 @echo off
+REM reinit.bat - small helper to reinitialize a copied OSGeo4W/QGIS tree
+REM Usage: run from repository root (or double-click). It will patch templates
+REM and run the setup reinitializer so absolute paths are updated for this copy.
+
+setlocal enabledelayedexpansion
+
+REM resolve script dir and repo root
+pushd %~dp0
+cd ..
+set OSGEO4W_ROOT=%CD%
+
+echo Reinitializing OSGeo4W/QGIS tree at %OSGEO4W_ROOT%
+
+REM 1) Patch templates (textreplace must exist in bin/)
+if exist "%OSGEO4W_ROOT%\bin\textreplace.exe" (
+    echo Running textreplace to patch templates...
+    "%OSGEO4W_ROOT%\bin\textreplace" -std -t "bin\setup.bat" || echo textreplace returned non-zero
+) else (
+    echo textreplace.exe not found in bin\. Skipping template patch.
+)
+
+REM 2) Run generated setup if present
+if exist "%OSGEO4W_ROOT%\bin\setup.bat" (
+    echo Calling generated bin\setup.bat to finish reinitialization...
+    call "%OSGEO4W_ROOT%\bin\setup.bat"
+    echo setup.bat completed.
+) else (
+    echo bin\setup.bat not found. You can run 'call etc\postinstall\setup.bat' instead.
+)
+
+REM 3) Optional: call qgis.bat --postinstall to run qgis-specific postinstall steps
+if exist "%OSGEO4W_ROOT%\bin\qgis.bat" (
+    echo Running qgis postinstall (optional)...
+    call "%OSGEO4W_ROOT%\bin\qgis.bat" --postinstall || echo qgis postinstall returned non-zero
+)
+
+echo Reinit finished. Try launching with bin\qgis.bat or RunQGIS.bat
+popd
+endlocal
+@echo off
 rem reinit.bat - Reinitialize this portable QGIS tree after copying to a new path
 rem Usage: run from any cmd.exe. The script will operate relative to its location (bin\reinit.bat).
 

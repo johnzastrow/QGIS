@@ -26,6 +26,22 @@ if %ERRORLEVEL% neq 0 (
     echo OSGeo4W environment set up successfully.
 )
 
+REM --- sanity checks: ensure apps\qgis\bin is available and qgis_app.dll exists
+set QGIS_BIN_DIR=%OSGEO4W_ROOT%\apps\qgis\bin
+if not exist "%QGIS_BIN_DIR%\qgis_app.dll" (
+    echo ERROR: required DLL not found: "%QGIS_BIN_DIR%\qgis_app.dll"
+    echo This usually means the installation templates were not patched for this path.
+    echo Run "bin\\reinit.bat" from the repository root to recreate generated wrappers and env files.
+    exit /b 1
+)
+
+echo Checking PATH for qgis bin directory...
+echo %PATH% | findstr /I /C:"%QGIS_BIN_DIR%" >nul
+if errorlevel 1 (
+    echo WARNING: "%QGIS_BIN_DIR%" is not on PATH for this shell.
+    echo The wrapper "bin\qgis.bat" will add it when called, but if you still see loader errors run "bin\\reinit.bat".
+)
+
 rem Launch QGIS with specific profile and project using the wrapper
 rem `bin\qgis.bat` configures PATH/QT_PLUGIN_PATH and then starts the
 rem real binary. Always prefer calling the wrapper when running from this
