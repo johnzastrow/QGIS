@@ -1,18 +1,27 @@
 @echo off
 REM reinit.bat - Reinitialize this portable QGIS tree after copying to a new path
-REM This script logs actions to var\log\reinit-<timestamp>.log
+REM
+REM Background: the OSGeo4W/QGIS portable tree writes several generated
+REM wrapper and environment files at install time. Those files often embed
+REM absolute paths. When the tree is copied to a new location the generated
+REM files may point to the old path and QGIS will fail to load with DLL
+REM loader errors (e.g. "qgis_app.dll not found"). This helper attempts to
+REM re-run the template patching and postinstall steps to recreate those
+REM generated files for the current tree location.
 
 setlocal enabledelayedexpansion
 
-REM Resolve repo root (one directory up from this script)
+REM Resolve repo root (script is located in bin\; parent is repo root)
 set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%..") do set "REPO_ROOT=%%~fI"
 pushd "%REPO_ROOT%"
 
-REM Ensure log directory exists
+REM Ensure the log directory exists. All activity is appended into a
+REM timestamped file under var\log plus a stable reinit-latest.log for
+REM quick inspection.
 if not exist "%REPO_ROOT%\var\log" mkdir "%REPO_ROOT%\var\log"
 
-REM Build a timestamp for the log file (sanitize characters)
+REM Build a timestamp-safe log filename by sanitizing characters from date/time
 set "datetime=%DATE%_%TIME%"
 set "datetime=%datetime:/=-%"
 set "datetime=%datetime::=-%"
@@ -27,14 +36,15 @@ echo Repository root: %REPO_ROOT%
 echo Log: %LOG%
 echo Latest: %LATESTLOG%
 
-echo === START: %DATE% %TIME% ===> "%LOG%" & echo === START: %DATE% %TIME% ===> "%LATESTLOG%"
 echo START: %DATE% %TIME% > "%LOG%"
 echo START: %DATE% %TIME% > "%LATESTLOG%"
 
-REM Helper to log lines to console and file
-  call :log "Repository root: %REPO_ROOT%"
+REM Log a little context for diagnostic purposes
+call :log "Repository root: %REPO_ROOT%"
 
 REM 1) Regenerate generated wrappers/templates using textreplace (if available)
+REM This step will rewrite files such as bin\setup.bat from templates and is
+REM the normal installer behavior that embeds correct absolute paths.
 if exist "%REPO_ROOT%\bin\textreplace.exe" (
   call :log "Running textreplace to update templates..."
   "%REPO_ROOT%\bin\textreplace.exe" -std -t bin\setup.bat >> "%LOG%" 2>&1
@@ -48,7 +58,10 @@ if exist "%REPO_ROOT%\bin\textreplace.exe" (
   call :log "Note: textreplace.exe not found in bin\ - skipping template replacement."
 )
 
-REM 2) Run bin\setup.bat (preferred) or etc\postinstall\setup.bat as fallback
+REM 2) Run bin\setup.bat (preferred) or etc\postinstall\setup.bat as a fallback
+REM The generated setup script will perform per-install actions (env files,
+REM registry of resources, etc.). If it's not present we fall back to the
+REM packaged postinstall script in etc\postinstall.
 if exist "%REPO_ROOT%\bin\setup.bat" (
   call :log "Calling bin\setup.bat to finish setup..."
   call "%REPO_ROOT%\bin\setup.bat" >> "%LOG%" 2>&1
@@ -62,9 +75,11 @@ if exist "%REPO_ROOT%\bin\setup.bat" (
     popd
     endlocal
     exit /b 2
-)
+  )
 
 REM 3) Run qgis postinstall actions (if any) to create env wrappers and register resources
+REM Some distributions use the qgis wrapper with a --postinstall flag to
+REM finalize runtime state; call it if present to ensure consistent wrappers.
 if exist "%REPO_ROOT%\bin\qgis.bat" (
   call :log "Running qgis postinstall wrapper (qgis.bat --postinstall)..."
   call "%REPO_ROOT%\bin\qgis.bat" --postinstall >> "%LOG%" 2>&1
@@ -73,7 +88,7 @@ if exist "%REPO_ROOT%\bin\qgis.bat" (
   call :log "Note: qgis.bat not present in bin\ - skipping qgis postinstall step."
 )
 
-REM 4) Basic checks
+REM 4) Basic checks - verify the expected generated files exist now
 if exist "%REPO_ROOT%\apps\qgis\bin\qgis_app.dll" (
   call :log "OK: apps\qgis\bin\qgis_app.dll exists"
 ) else (
