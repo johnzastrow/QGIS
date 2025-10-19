@@ -10,6 +10,11 @@ This repository is a full OSGeo4W-style QGIS distribution tree (Windows). Use th
 
 Key files to inspect first: `apps/qgis/doc/INSTALL.md` (detailed build notes), `bin/qgis.bat` (env wrapper), and `RunQGIS.bat` (how this workspace launches QGIS with a profile/project).
 
+Small, useful runtime helpers you should know about:
+- `bin/reinit.bat` — run this once after copying the tree to a new path. It runs `textreplace` (if present) and the packaged postinstall/setup to recreate generated wrapper/env files that embed absolute paths.
+- `RunQGIS.bat --yes` / `RunQGIS.bat -y` — non-interactive flag to auto-run the `reinit` helper if the main QGIS DLL is missing (useful for scripted launches or CI).
+- `tools/validate_runtime.py` and `tools/validate_runtime.ps1` — small validators that check a minimal set of files/dirs and return 0/1 for quick CI or local sanity checks.
+
 ### How to run right now (workspace-specific)
 - This tree is designed to be launched via the OSGeo4W environment. The provided `RunQGIS.bat` does the correct setup: it calls `OSGeo4W.bat` then runs `bin\qgis-bin.exe` with a profile and a geopackage project example (`data.gpkg`). Use that to run the app without rebuilding.
 
