@@ -27,10 +27,11 @@ if not "%~1"=="" (
     )
 )
 
-REM Call the OSGeo4W environment bootstrap. This sets a minimal set of
-REM environment variables by sourcing `bin\o4w_env.bat` and the files under
-REM `etc\ini`. We need this to compute `%OSGEO4W_ROOT%` and other paths.
-call "%~dp0\OSGeo4W.bat"
+REM Bootstrap the OSGeo4W environment directly by calling the local
+REM `bin\o4w_env.bat`. Calling `OSGeo4W.bat` without parameters opens a
+REM subshell (it runs `cmd /k`), which prevents the remainder of this
+REM script from executing. Use the environment helper directly instead.
+call "%~dp0\bin\o4w_env.bat"
 if %ERRORLEVEL% neq 0 (
     echo Failed to set up OSGeo4W environment.
     exit /b %ERRORLEVEL%
