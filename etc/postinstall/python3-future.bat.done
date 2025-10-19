@@ -1,0 +1,2 @@
+textreplace -std -t apps/Python312/Scripts/futurize.exe
+textreplace -std -t apps/Python312/Scripts/pasteurize.exe

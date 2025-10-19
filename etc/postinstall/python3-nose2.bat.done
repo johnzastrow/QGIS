@@ -1,0 +1,1 @@
+textreplace -std -t apps/Python312/Scripts/nose2.exe

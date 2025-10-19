@@ -1,0 +1,3 @@
+textreplace -std -t apps/Python312/Scripts/pylupdate5.exe
+textreplace -std -t apps/Python312/Scripts/pyrcc5.exe
+textreplace -std -t apps/Python312/Scripts/pyuic5.exe

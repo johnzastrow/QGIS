@@ -1,0 +1,6 @@
+textreplace -std -t apps/Python312/Scripts/sip-build.exe
+textreplace -std -t apps/Python312/Scripts/sip-distinfo.exe
+textreplace -std -t apps/Python312/Scripts/sip-install.exe
+textreplace -std -t apps/Python312/Scripts/sip-module.exe
+textreplace -std -t apps/Python312/Scripts/sip-sdist.exe
+textreplace -std -t apps/Python312/Scripts/sip-wheel.exe
