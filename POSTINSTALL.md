@@ -130,14 +130,13 @@ sequenceDiagram
     participant S as setup
     participant QB as qgis.bat
     participant L as var/log
-
-    Note over TR,S,QB: postinstall workflow
+    Note over TR: postinstall workflow
     TR->>S: generate `bin/setup.bat` (if templates present)
     S->>QB: create wrappers & env files (e.g. `bin/qgis-bin.env`)
     QB->>L: emit wrapper/runtime logs
     S->>L: emit setup logs (`var/log/setup.log.full`)
 
-    Note over TR,S,QB,L: end of postinstall
+      Note over L: end of postinstall
 ```
 
 Common failure modes and diagnostics
@@ -246,11 +245,109 @@ Typical env vars referenced/used:
 Other postinstall scripts in this tree
 -------------------------------------
 
-The directory contains multiple `python3-*.bat.done` entries for packaging
-Python helper scripts (charset-normalizer, numpy, pyproj, pyqt5, etc.). Most
-of these perform `textreplace` calls for generated Python script wrappers or
-call small setup tasks. They rarely set persistent system-wide environment
-variables; instead they operate on files under `apps\Python312`.
+The directory contains multiple `python3-*.bat.done` entries used to generate
+Python script/tool wrappers and small package-specific setup steps. They
+generally run `textreplace -std -t <target>` to create platform-specific
+wrappers under `apps\Python312\Scripts` (or occasionally perform tidyups).
+They rarely set persistent system-wide environment variables. Below are the
+actual `python3-*.bat.done` files in this tree with a one-line summary for
+each and a representative excerpt.
+
+- `python3-charset-normalizer.bat.done`
+
+  - Purpose: generate the `normalizer` CLI wrapper under `apps/Python312/Scripts`.
+
+  ```text
+  textreplace -std -t apps/Python312/Scripts/normalizer.exe
+  ```
+
+- `python3-future.bat.done`
+
+  - Purpose: generate the `futurize` and `pasteurize` CLI wrappers provided by the
+    `future` package (compatibility helpers).
+
+  ```text
+  textreplace -std -t apps/Python312/Scripts/futurize.exe
+  textreplace -std -t apps/Python312/Scripts/pasteurize.exe
+  ```
+
+- `python3-gdal.bat.done`
+
+  - Purpose: generate the large set of GDAL/OGR Python CLI scripts (gdal_calc,
+    gdal_merge, ogrmerge, gdal2tiles, etc.) under `apps\Python312\Scripts`.
+
+  ```text
+  textreplace -std -t apps\Python312\Scripts\gdal_calc.py
+  textreplace -std -t apps\Python312\Scripts\gdal_merge.py
+  textreplace -std -t apps\Python312\Scripts\ogrmerge.py
+  textreplace -std -t apps\Python312\Scripts\gdal2tiles.py
+  ... (many more textreplace invocations)
+  ```
+
+- `python3-nose2.bat.done`
+
+  - Purpose: generate the `nose2` test-runner wrapper.
+
+  ```text
+  textreplace -std -t apps/Python312/Scripts/nose2.exe
+  ```
+
+- `python3-numpy.bat.done`
+
+  - Purpose: generate `f2py` (NumPy's Fortran to Python wrapper builder) under
+    `apps/Python312/Scripts`.
+
+  ```text
+  textreplace -std -t apps/Python312/Scripts/f2py.exe
+  ```
+
+- `python3-pygments.bat.done`
+
+  - Purpose: generate `pygmentize` (Pygments CLI) wrapper.
+
+  ```text
+  textreplace -std -t apps/Python312/Scripts/pygmentize.exe
+  ```
+
+- `python3-pyproj.bat.done`
+
+  - Purpose: generate the `pyproj` CLI wrapper (proj-related helpers).
+
+  ```text
+  textreplace -std -t apps/Python312/Scripts/pyproj.exe
+  ```
+
+- `python3-pyqt5.bat.done`
+
+  - Purpose: generate Qt tooling wrappers used by PyQt5 (pylupdate5, pyrcc5,
+    pyuic5) which are useful when building/translating Qt resources in plugins.
+
+  ```text
+  textreplace -std -t apps/Python312/Scripts/pylupdate5.exe
+  textreplace -std -t apps/Python312/Scripts/pyrcc5.exe
+  textreplace -std -t apps/Python312/Scripts/pyuic5.exe
+  ```
+
+- `python3-sip.bat.done`
+
+  - Purpose: generate the `sip` toolchain wrappers (sip-build, sip-install,
+    sip-wheel, etc.) used when building SIP-based Python extensions.
+
+  ```text
+  textreplace -std -t apps/Python312/Scripts/sip-build.exe
+  textreplace -std -t apps/Python312/Scripts/sip-install.exe
+  textreplace -std -t apps/Python312/Scripts/sip-wheel.exe
+  ```
+
+Summary
+-------
+
+Most `python3-*.bat.done` entries are simple wrapper-generators. When moving or
+copying the tree to a new location you should re-run the `textreplace` step or
+call `bin\setup.bat` so these wrapper scripts are regenerated for the new
+install root. Failing to do so will leave script shims and wrappers pointing to
+the original packaged paths which can cause runtime failures when invoking
+Python tools from `apps\Python312\Scripts`.
 
 General note on `o4w_env.bat` and `etc\ini` files
 -------------------------------------------------
