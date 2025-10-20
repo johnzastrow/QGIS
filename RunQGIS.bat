@@ -55,13 +55,13 @@ if not exist "%QGIS_BIN_DIR%\qgis_app.dll" (
         set /p _ans=Choice: 
     )
     if /I "%_ans%"=="Y" (
-        if exist "%~dp0bin\reinit.bat" (
+        if exist "%~dp0\bin\reinit.bat" (
             REM Run the reinit helper which will run textreplace and setup.
             echo Running bin\reinit.bat ...
-            call "%~dp0bin\reinit.bat"
+            call "%~dp0\bin\reinit.bat"
             echo Reinit complete; retrying launch...
         ) else (
-            echo reinit.bat not found at "%~dp0bin\reinit.bat". Please run it manually from the repo root.
+            echo reinit.bat not found at "%~dp0\bin\reinit.bat". Please run it manually from the repo root.
             exit /b 1
         )
     ) else (
@@ -100,6 +100,6 @@ if %ERRORLEVEL% neq 0 (
     exit /b %ERRORLEVEL%
 )   else echo QGIS launched with custom profile and project.
 
-bin\textreplace -std -t bin\setup.bat
-call bin\setup.bat
-call etc\postinstall\setup.bat
+REM The earlier steps run the wrapper which should configure and start the
+REM application. We intentionally do not run template replacement or setup
+REM unconditionally here to avoid modifying a copied tree without user consent.
