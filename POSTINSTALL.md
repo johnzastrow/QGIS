@@ -405,4 +405,90 @@ Where to look for more detail
 - `var\log\setup.log.full` — full postinstall output created by `bin\setup.bat`.
 - `etc\postinstall\*.bat.done` — packaged record of commands that were run by postinstall; read these for exact command sequences used when the tree was packaged.
 
+Packager notes and proposed `docs/ENVIRONMENT.md` content
+--------------------------------------------------------
+
+The following text is a proposed `docs/ENVIRONMENT.md` intended for packagers and maintainers. It consolidates the environment variables, explains their purpose, and provides quick checks and example commands to validate a portable tree after packaging or after copying to a new location.
+
+Overview
+--------
+
+The portable QGIS tree relies on per-install wrapper scripts and a small set of environment variables to point to runtime data, plugins, and bundled runtimes. Packaging should ensure that either the generated wrappers are created with correct absolute paths (via `textreplace`/`bin\setup.bat`) or that a simple postinstall step is run on first boot to recreate them.
+
+Key goals for packagers
+ - Ensure `etc\ini\*.bat` contains reasonable default values that will be patched at install time (or computed by `o4w_env.bat`).
+ - Ensure `bin\textreplace.exe` and templates are present if you expect to run template patching during install.
+ - Provide or document a non-interactive way to run the reinit/postinstall steps (for unattended installs). Example: `RunQGIS.bat --yes` or `bin\reinit.bat --yes`.
+
+Quick validation checklist (manual)
+----------------------------------
+
+1. Files & wrappers
+  - `bin\qgis.bat` exists and is executable.
+  - `apps\qgis\bin\qgis_app.dll` exists.
+  - `apps\Python312\python.exe` exists.
+
+2. `etc\ini` presence and sample values
+  - Confirm the `etc\ini` files exist (`base.bat`, `gdal.bat`, `python3.bat`, `qt5.bat`, etc.).
+  - Inspect the variables table in this document (or run the automated checks below) to ensure the variables resolve to paths under the install root.
+
+3. Run the runtime validator
+  - Use the bundled validator (included in this tree):
+
+```powershell
+# PowerShell (packager/CI): run from repo root
+& "${PWD}\apps\Python312\python.exe" "${PWD}\tools\validate_runtime.py"
+```
+
+Automated checks for CI or packagers
+-----------------------------------
+
+Below are small, optional checks you can add to packaging CI to validate the environment after an install or copy. They assume the packaged Python is available under `apps/Python312`.
+
+1) Validate presence of expected files (shell):
+
+```bash
+set -e
+ROOT="/c/Users/Shared/QGIS"  # adjust for your runner
+PY="$ROOT/apps/Python312/python.exe"
+"$PY" "$ROOT/tools/validate_runtime.py"
+```
+
+2) Check that environment variables are resolved by `o4w_env.bat` (non-destructive)
+
+This launches a new cmd.exe to run the bootstrap and prints a select set of variables. It's safe: it only reads files and prints values.
+
+```powershell
+# PowerShell sample to inspect envs after sourcing o4w_env.bat
+$root = 'C:\Users\Shared\QGIS'
+$o4w = Join-Path $root 'bin\o4w_env.bat'
+cmd /c "call \"$o4w\" && set GDAL_DATA && set PROJ_DATA && set PYTHONHOME && set QT_PLUGIN_PATH" 
+```
+
+3) CI-friendly Python check (reads variables by launching cmd):
+
+```python
+import subprocess, os
+root = os.path.abspath('.')
+o4w = os.path.join(root, 'bin', 'o4w_env.bat')
+cmd = ['cmd', '/c', f'call "{o4w}" && set GDAL_DATA && set PROJ_DATA && set PYTHONHOME']
+proc = subprocess.run(cmd, stdout=subprocess.PIPE, text=True)
+print(proc.stdout)
+```
+
+Rationale for checks
+--------------------
+
+- Running `o4w_env.bat` in a subshell and listing the key environment variables is the least invasive way to ensure the packaged environment files yield correct paths without modifying files. The checks are read-only: they only compute and print environment values.
+- The `tools/validate_runtime.py` script is useful to check file presence but does not evaluate runtime environment variables — the additional `cmd`/PowerShell/ Python steps above complement it by validating the computed environment.
+
+Packaging recommendations
+------------------------
+
+- If you're building an installer that places the portable tree on disk, prefer to run the `textreplace` + `bin\setup.bat` steps during installation instead of at first-run to provide better UX (shorter first-run time and fewer surprises for users).
+- Provide a `--yes` or non-interactive option for reinit scripts so packagers and automated installers can run them silently.
+- Include `var\log\setup.log.full` in packaging artifacts or upload it from installers to aid debugging when users report installation issues.
+
+If you want, I can convert the small examples above into a `ci/validate_environment.py` script and add a minimal GitHub Actions workflow that runs it on PRs. I won't create that file unless you ask.
+
 *** End of POSTINSTALL.md
