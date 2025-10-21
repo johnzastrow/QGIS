@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(test -f /mnt/c/Users/br8kw/Downloads/QGIS_orig/bin/textreplace.exe)",
+      "Bash(test -f /mnt/c/Users/br8kw/Downloads/QGIS_orig/bin/setup.bat)",
+      "Bash(test -f /mnt/c/Users/br8kw/Downloads/QGIS_orig/bin/qgis-bin.env)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
