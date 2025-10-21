@@ -18,37 +18,30 @@ REM Resolve repo root (script is located in portable\; parent is repo root)
 for %%I in ("%~dp0..") do set "REPO_ROOT=%%~fI"
 pushd "%REPO_ROOT%"
 
+REM Set OSGEO4W_ROOT early so textreplace can see it
+set "OSGEO4W_ROOT=%REPO_ROOT%"
+
 REM Ensure the log directory exists. All activity is appended into a
 REM timestamped file under var\log plus a stable reinit-latest.log for
 REM quick inspection.
 if not exist "%REPO_ROOT%\var\log" mkdir "%REPO_ROOT%\var\log"
 
-REM Build timestamp using token parsing for consistent format
-for /f "tokens=1-4 delims=/ .: " %%a in ("%date% %time%") do (
-    set "Y=%%d"
-    set "M=00%%b"
-    set "D=00%%c"
-    set "T=%%e"
-)
-set "M=%M:~-2%"
-set "D=%D:~-2%"
-set "T=%T: =0%"
-set "TS=%Y%-%M%-%D%_%T%"
+REM Build timestamp using PowerShell for reliable cross-locale formatting
+for /f "tokens=*" %%a in ('powershell -noprofile -command "Get-Date -Format 'yyyy-MM-dd_HHmmss'"') do set "TS=%%a"
 set "LOG=%REPO_ROOT%\var\log\reinit-interactive-%TS%.log"
 set "LATESTLOG=%REPO_ROOT%\var\log\reinit-interactive-latest.log"
 
-echo === QGIS portable reinitializer (INTERACTIVE) ===
+echo === QGIS portable reinitializer (INTERACTIVE) v1.0.8 ===
 echo Repository root: %REPO_ROOT%
 echo Log: %LOG%
 echo Latest: %LATESTLOG%
 echo.
 
 echo START: %DATE% %TIME% > "%LOG%"
-echo START: %DATE% %TIME% > "%LATESTLOG%"
 
 REM Log a little context for diagnostic purposes
+call :log "Script: portable\interactive_reinit.bat v1.0.8"
 call :log "Repository root: %REPO_ROOT%"
-call :log "Script: portable\interactive_reinit.bat"
 call :log ""
 
 REM 1) Regenerate generated wrappers/templates using textreplace (if available)
@@ -56,6 +49,11 @@ REM This step will rewrite files such as bin\setup.bat from templates and is
 REM the normal installer behavior that embeds correct absolute paths.
 if exist "%REPO_ROOT%\bin\textreplace.exe" (
   call :log "[Step 1/4] Running textreplace to update templates..."
+  call :log "  Debug: REPO_ROOT = %REPO_ROOT%"
+  call :log "  Debug: OSGEO4W_ROOT = %OSGEO4W_ROOT%"
+  call :log "  Debug: textreplace.exe path = %REPO_ROOT%\bin\textreplace.exe"
+  call :log "  Debug: Current directory = %CD%"
+  call :log "  Debug: Now running textreplace..."
   "%REPO_ROOT%\bin\textreplace.exe" -std -t bin\setup.bat >> "%LOG%" 2>&1
   if errorlevel 1 (
     call :log "ERROR: textreplace failed (exit %ERRORLEVEL%). See log for details."
@@ -189,9 +187,8 @@ if %VALIDATION_ERRORS% equ 0 (
 )
 
 echo END: %DATE% %TIME% >> "%LOG%"
-echo END: %DATE% %TIME% >> "%LATESTLOG%"
 
-REM ensure stable latest log contains the full timestamped log
+REM Copy timestamped log to stable latest log
 copy /Y "%LOG%" "%LATESTLOG%" >nul 2>&1
 
 echo.
@@ -222,10 +219,9 @@ endlocal
 exit /b %VALIDATION_ERRORS%
 
 :log
-rem log helper: echo to console AND append to both log files
+rem log helper: echo to console AND append to log file
 setlocal
 set "_msg=%~1"
 echo %_msg%
 echo %_msg% >> "%LOG%"
-echo %_msg% >> "%LATESTLOG%"
 endlocal & goto :eof
