@@ -3,7 +3,14 @@
     "allow": [
       "Bash(test -f /mnt/c/Users/br8kw/Downloads/QGIS_orig/bin/textreplace.exe)",
       "Bash(test -f /mnt/c/Users/br8kw/Downloads/QGIS_orig/bin/setup.bat)",
-      "Bash(test -f /mnt/c/Users/br8kw/Downloads/QGIS_orig/bin/qgis-bin.env)"
+      "Bash(test -f /mnt/c/Users/br8kw/Downloads/QGIS_orig/bin/qgis-bin.env)",
+      "Read(//mnt/c/Users/br8kw/Downloads/newQGIS/**)",
+      "Bash(test -f /mnt/c/Users/br8kw/Downloads/newQGIS/bin/setup.bat)",
+      "Bash(test -f /mnt/c/Users/br8kw/Downloads/newQGIS/bin/qgis-bin.env)",
+      "Bash(test -f /mnt/c/Users/br8kw/Downloads/newQGIS/bin/textreplace.exe)",
+      "Bash(md5sum /mnt/c/Users/br8kw/Downloads/QGIS_orig/bin/qgis-bin.exe /mnt/c/Users/br8kw/Downloads/newQGIS/bin/qgis-bin.exe)",
+      "Bash(md5sum /mnt/c/Users/br8kw/Downloads/QGIS_orig/apps/qgis/bin/qgis_app.dll /mnt/c/Users/br8kw/Downloads/newQGIS/apps/qgis/bin/qgis_app.dll)",
+      "Bash(cat /mnt/c/Users/br8kw/Downloads/newQGIS/bin/qgis-bin.env)"
     ],
     "deny": [],
     "ask": []

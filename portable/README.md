@@ -75,3 +75,78 @@ Authors
 -------
 Small helper set created to make portable QGIS trees relocatable without
 rebuilding or reinstalling.
+
+
+Detailed Comparison: bin/reinit.bat vs portable/reinit_portable.bat
+
+  📊 Feature-by-Feature Comparison
+
+  | Feature           | bin/reinit.bat                            | portable/reinit_portable.bat  | Winner
+     |
+  |-------------------|-------------------------------------------|-------------------------------|-----------------
+  ---|
+  | Lines of code     | 123 lines                                 | 80 lines                      | Portable
+  (simpler) |
+  | Script location   | bin/ directory                            | portable/ directory           | -
+     |
+  | Root resolution   | SCRIPT_DIR/..\ (parent of bin)            | %~dp0..\ (parent of portable) | ✅ Equal
+      |
+  | Console output    | ✅ Rich: Header, progress updates, results | ❌ Minimal: Only final message | bin/reinit.bat
+       |
+  | User feedback     | ✅ Real-time via :log function             | ❌ Silent until completion     | bin/reinit.bat
+       |
+  | Logging           | ✅ Dual: timestamped + latest              | ✅ Dual: timestamped + latest  | ✅ Equal
+        |
+  | Error handling    | ✅ Verbose with context                    | ❌ Terse messages              | bin/reinit.bat
+       |
+  | Validation checks | ✅ 2 checks: qgis_app.dll + qgis-bin.env   | ❌ 1 check: qgis_app.dll only  | bin/reinit.bat
+       |
+  | Path safety       | ✅ Quoted: "%REPO_ROOT%\bin\..."           | ⚠️ Relative: bin\...          | bin/reinit.bat
+      |
+  | Exit codes        | ✅ Documented: 0, 1, 2                     | ✅ Same: 0, 1, 2               | ✅ Equal
+        |
+
+  ---
+  🔍 Core Functional Sequence (Both Identical)
+
+  Both scripts perform the exact same operations in the exact same order:
+
+  flowchart TD
+      START[Script starts] --> ROOT[Compute REPO_ROOT]
+      ROOT --> MKDIR[Create var/log if needed]
+      MKDIR --> TR_CHECK{textreplace.exe<br/>exists?}
+
+      TR_CHECK -->|Yes| TR[Run: bin\textreplace.exe -std -t bin\setup.bat]
+      TR_CHECK -->|No| SKIP_TR[Skip textreplace]
+
+      TR --> SETUP_CHECK
+      SKIP_TR --> SETUP_CHECK
+
+      SETUP_CHECK{bin\setup.bat<br/>exists?}
+      SETUP_CHECK -->|Yes| RUN_SETUP[Call: bin\setup.bat]
+      SETUP_CHECK -->|No| FALLBACK{etc\postinstall\setup.bat<br/>exists?}
+
+      FALLBACK -->|Yes| RUN_FALLBACK[Call: etc\postinstall\setup.bat]
+      FALLBACK -->|No| ERROR[EXIT 2: No setup script]
+
+      RUN_SETUP --> QW_CHECK
+      RUN_FALLBACK --> QW_CHECK
+
+      QW_CHECK{bin\qgis.bat<br/>exists?}
+      QW_CHECK -->|Yes| RUN_QW[Call: bin\qgis.bat --postinstall]
+      QW_CHECK -->|No| SKIP_QW[Skip qgis postinstall]
+
+      RUN_QW --> VALIDATE
+      SKIP_QW --> VALIDATE
+
+      VALIDATE[Validate qgis_app.dll exists]
+      VALIDATE --> SUCCESS[EXIT 0: Success]
+
+      style TR fill:#fff4e1
+      style RUN_SETUP fill:#e1f5ff
+      style RUN_FALLBACK fill:#e1f5ff
+      style RUN_QW fill:#e1f5ff
+      style SUCCESS fill:#d4edda
+      style ERROR fill:#f8d7da
+
+  Verdict: ✅ Core functionality is 100% identical
