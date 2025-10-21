@@ -11,12 +11,17 @@
 # This is the INTERACTIVE version that provides real-time console feedback.
 # For automated/silent operation, use silent_reinit.ps1 instead.
 
-$ErrorActionPreference = "Continue"
-$VERSION = "1.1.4"
+# Accept a -Debug switch to enable verbose debug logging
+param(
+    [switch]$Debug
+)
 
-# Optional debug switch - set to $true to log more detailed command/debug info
-$Script:REINIT_DEBUG = $true
-# set above to $false to disable debug logging
+$ErrorActionPreference = "Continue"
+$VERSION = "1.1.5"
+
+# Optional debug switch - controlled via the -Debug parameter
+$Script:REINIT_DEBUG = $false
+if ($Debug) { $Script:REINIT_DEBUG = $true }
 
 # Resolve repo root (script is located in portable\; parent is repo root)
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -113,18 +118,39 @@ Write-Log ""
 $SetupBat = Join-Path $REPO_ROOT "bin\setup.bat"
 $FallbackSetupBat = Join-Path $REPO_ROOT "etc\postinstall\setup.bat"
 
+# Guard: do not run GUI installers. If bin\osgeo4w-setup.exe is present and would be launched
+# by setup.bat, skip running it here and log a safe instruction instead.
+$GuiInstaller = Join-Path $REPO_ROOT "bin\osgeo4w-setup.exe"
+# Also detect if setup.bat references the GUI installer so we can avoid launching it
+$SetupBatContainsGui = $false
 if (Test-Path $SetupBat) {
-    Write-Log "[Step 2/4] Calling bin\setup.bat to finish setup..."
     try {
-        $output = & cmd /c "`"$SetupBat`"" 2>&1
-        $output | Out-File -FilePath $LOG -Append -Encoding UTF8
-        if ($LASTEXITCODE -ne 0) {
-            Write-Log "Warning: bin\setup.bat exited with error $LASTEXITCODE"
-        } else {
-            Write-Log "SUCCESS: bin\setup.bat completed"
-        }
+        $content = Get-Content -Path $SetupBat -ErrorAction SilentlyContinue -Raw
+        if ($content -match "osgeo4w-setup.exe") { $SetupBatContainsGui = $true }
     } catch {
-        Write-Log "Warning: bin\setup.bat exception: $_"
+        # ignore read errors and assume false
+    }
+}
+
+if (Test-Path $SetupBat) {
+    # If the setup.bat would launch a GUI installer, skip it here.
+    if (Test-Path $GuiInstaller -or $SetupBatContainsGui) {
+        Write-Log "[Step 2/4] bin\setup.bat would launch GUI installer (osgeo4w-setup.exe) or references it; skipping automatic run."
+        Write-Log "  To complete installation non-interactively, run RunQGIS.bat --yes or use the -y flag where supported."
+        Write-Log "  Alternatively, run the installer interactively: $GuiInstaller"
+    } else {
+        Write-Log "[Step 2/4] Calling bin\setup.bat to finish setup..."
+        try {
+            $output = & cmd /c "`"$SetupBat`"" 2>&1
+            $output | Out-File -FilePath $LOG -Append -Encoding UTF8
+            if ($LASTEXITCODE -ne 0) {
+                Write-Log "Warning: bin\setup.bat exited with error $LASTEXITCODE"
+            } else {
+                Write-Log "SUCCESS: bin\setup.bat completed"
+            }
+        } catch {
+            Write-Log "Warning: bin\setup.bat exception: $_"
+        }
     }
 } elseif (Test-Path $FallbackSetupBat) {
     Write-Log "[Step 2/4] bin\setup.bat not found; calling etc\postinstall\setup.bat instead..."

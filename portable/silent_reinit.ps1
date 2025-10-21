@@ -11,8 +11,12 @@
 # This is the SILENT version that only logs to files (no console output during execution).
 # For interactive operation with real-time feedback, use interactive_reinit.ps1 instead.
 
+param(
+    [switch]$Debug
+)
+
 $ErrorActionPreference = "Continue"
-$VERSION = "1.1.2"
+$VERSION = "1.1.6"
 
 # Resolve repo root (script is located in portable\; parent is repo root)
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -21,6 +25,11 @@ Set-Location $REPO_ROOT
 
 # Set OSGEO4W_ROOT for textreplace and other tools
 $env:OSGEO4W_ROOT = $REPO_ROOT
+
+# MSYS-style fallback variable for scripts that check it
+if (-not $env:OSGEO4W_ROOT_MSYS -or $env:OSGEO4W_ROOT_MSYS -eq "") {
+    $env:OSGEO4W_ROOT_MSYS = $REPO_ROOT -replace '\\', '/'
+}
 
 # Ensure log directory exists
 $LogDir = Join-Path $REPO_ROOT "var\log"
@@ -53,15 +62,28 @@ $TextReplaceExe = Join-Path $REPO_ROOT "bin\textreplace.exe"
 if (Test-Path $TextReplaceExe) {
     Write-Log "[Step 1/4] Running textreplace to update templates..."
     try {
-        # Call through cmd.exe to ensure OSGEO4W_ROOT is visible to the executable
-        $output = & cmd /c "set OSGEO4W_ROOT=$env:OSGEO4W_ROOT && `"$TextReplaceExe`" -std -t bin\setup.bat" 2>&1
+        # Try direct call first (inherits PowerShell env)
+        if ($Debug) { Write-Log "  Debug: calling textreplace directly: $TextReplaceExe -std -t bin\setup.bat" }
+        $output = & "$TextReplaceExe" -std -t "bin\setup.bat" 2>&1
         $output | Out-File -FilePath $LOG -Append -Encoding UTF8
-        if ($LASTEXITCODE -ne 0) {
-            Write-Log "ERROR: textreplace failed (exit $LASTEXITCODE). See log for details."
-            Copy-Item $LOG $LATESTLOG -Force
-            exit 1
+        $directExit = $LASTEXITCODE
+        if ($directExit -eq 0 -and ($output -notmatch "Missing OSGEO4W_ROOT")) {
+            Write-Log "SUCCESS: textreplace completed successfully (direct call)"
         } else {
-            Write-Log "SUCCESS: textreplace completed successfully"
+            Write-Log "  Debug: direct call returned exit $directExit or indicated missing env; falling back to cmd.exe wrapper..."
+            $cmd = 'set "OSGEO4W_ROOT=' + ($env:OSGEO4W_ROOT) + '" && '
+            $cmd += 'set "OSGEO4W_ROOT_MSYS=' + ($env:OSGEO4W_ROOT_MSYS) + '" && '
+            $cmd += '"' + $TextReplaceExe + '" -std -t bin\\setup.bat'
+            if ($Debug) { Write-Log "  Debug: cmd fallback command: $cmd" }
+            $output = & cmd /c $cmd 2>&1
+            $output | Out-File -FilePath $LOG -Append -Encoding UTF8
+            if ($LASTEXITCODE -ne 0) {
+                Write-Log "ERROR: textreplace failed (exit $LASTEXITCODE). See log for details."
+                Copy-Item $LOG $LATESTLOG -Force
+                exit 1
+            } else {
+                Write-Log "SUCCESS: textreplace completed successfully (cmd fallback)"
+            }
         }
     } catch {
         Write-Log "ERROR: textreplace exception: $_"
@@ -77,18 +99,37 @@ Write-Log ""
 $SetupBat = Join-Path $REPO_ROOT "bin\setup.bat"
 $FallbackSetupBat = Join-Path $REPO_ROOT "etc\postinstall\setup.bat"
 
+# Do not run GUI installers automatically. If bin\osgeo4w-setup.exe exists, skip running setup.bat.
+$GuiInstaller = Join-Path $REPO_ROOT "bin\osgeo4w-setup.exe"
+# Detect if setup.bat references the GUI installer
+$SetupBatContainsGui = $false
 if (Test-Path $SetupBat) {
-    Write-Log "[Step 2/4] Calling bin\setup.bat to finish setup..."
     try {
-        $output = & cmd /c "`"$SetupBat`"" 2>&1
-        $output | Out-File -FilePath $LOG -Append -Encoding UTF8
-        if ($LASTEXITCODE -ne 0) {
-            Write-Log "Warning: bin\setup.bat exited with error $LASTEXITCODE"
-        } else {
-            Write-Log "SUCCESS: bin\setup.bat completed"
-        }
+        $content = Get-Content -Path $SetupBat -ErrorAction SilentlyContinue -Raw
+        if ($content -match "osgeo4w-setup.exe") { $SetupBatContainsGui = $true }
     } catch {
-        Write-Log "Warning: bin\setup.bat exception: $_"
+        # ignore
+    }
+}
+
+if (Test-Path $SetupBat) {
+    if (Test-Path $GuiInstaller -or $SetupBatContainsGui) {
+        Write-Log "[Step 2/4] bin\setup.bat would launch GUI installer (osgeo4w-setup.exe) or references it; skipping automatic run."
+        Write-Log "  To complete installation non-interactively, run RunQGIS.bat --yes or use the -y flag where supported."
+        Write-Log "  Alternatively, run the installer interactively: $GuiInstaller"
+    } else {
+        Write-Log "[Step 2/4] Calling bin\setup.bat to finish setup..."
+        try {
+            $output = & cmd /c "`"$SetupBat`"" 2>&1
+            $output | Out-File -FilePath $LOG -Append -Encoding UTF8
+            if ($LASTEXITCODE -ne 0) {
+                Write-Log "Warning: bin\setup.bat exited with error $LASTEXITCODE"
+            } else {
+                Write-Log "SUCCESS: bin\setup.bat completed"
+            }
+        } catch {
+            Write-Log "Warning: bin\setup.bat exception: $_"
+        }
     }
 } elseif (Test-Path $FallbackSetupBat) {
     Write-Log "[Step 2/4] bin\setup.bat not found; calling etc\postinstall\setup.bat instead..."
