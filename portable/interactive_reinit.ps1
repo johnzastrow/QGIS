@@ -12,7 +12,11 @@
 # For automated/silent operation, use silent_reinit.ps1 instead.
 
 $ErrorActionPreference = "Continue"
-$VERSION = "1.1.2"
+$VERSION = "1.1.4"
+
+# Optional debug switch - set to $true to log more detailed command/debug info
+$Script:REINIT_DEBUG = $true
+# set above to $false to disable debug logging
 
 # Resolve repo root (script is located in portable\; parent is repo root)
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -21,6 +25,14 @@ Set-Location $REPO_ROOT
 
 # Set OSGEO4W_ROOT for textreplace and other tools
 $env:OSGEO4W_ROOT = $REPO_ROOT
+
+# If an MSYS-style path variable is expected by some helpers, set a MSYS-style env var
+# Derive a simple MSYS path fallback (replace backslashes with forward slashes). This
+# may not be perfect for all MSYS setups but helps wrappers that check OSGEO4W_ROOT_MSYS.
+if (-not $env:OSGEO4W_ROOT_MSYS -or $env:OSGEO4W_ROOT_MSYS -eq "") {
+    $msysPath = $REPO_ROOT -replace '\\', '/'
+    $env:OSGEO4W_ROOT_MSYS = $msysPath
+}
 
 # Ensure log directory exists
 $LogDir = Join-Path $REPO_ROOT "var\log"
@@ -59,17 +71,33 @@ $VALIDATION_ERRORS = 0
 $TextReplaceExe = Join-Path $REPO_ROOT "bin\textreplace.exe"
 if (Test-Path $TextReplaceExe) {
     Write-Log "[Step 1/4] Running textreplace to update templates..."
-    Write-Log "  Debug: Calling textreplace through cmd.exe to ensure environment propagates..."
+    Write-Log "  Debug: Attempting direct call to textreplace (PowerShell) first..."
     try {
-        # Call through cmd.exe to ensure OSGEO4W_ROOT is visible to the executable
-        $output = & cmd /c "set OSGEO4W_ROOT=$env:OSGEO4W_ROOT && `"$TextReplaceExe`" -std -t bin\setup.bat" 2>&1
+        # First attempt: call the executable directly so it inherits the PowerShell environment
+        if ($Script:REINIT_DEBUG) { Write-Log "  Debug: calling textreplace directly: `"$TextReplaceExe`" -std -t bin\setup.bat" }
+        $output = & "$TextReplaceExe" -std -t "bin\setup.bat" 2>&1
         $output | Out-File -FilePath $LOG -Append -Encoding UTF8
-        if ($LASTEXITCODE -ne 0) {
-            Write-Log "ERROR: textreplace failed (exit $LASTEXITCODE). See log for details."
-            Copy-Item $LOG $LATESTLOG -Force
-            exit 1
+        $directExit = $LASTEXITCODE
+        if ($directExit -eq 0 -and ($output -notmatch "Missing OSGEO4W_ROOT")) {
+            Write-Log "SUCCESS: textreplace completed successfully (direct call)"
         } else {
-            Write-Log "SUCCESS: textreplace completed successfully"
+            Write-Log "  Debug: direct call returned exit $directExit or indicated missing env; falling back to cmd.exe wrapper..."
+            # Fallback: call via cmd.exe but use the safe set "VAR=VALUE" quoting form.
+            # Build the command via concatenation to avoid needing to escape nested double-quotes.
+            # Also include OSGEO4W_ROOT_MSYS in case the exe checks that variable.
+            $cmd = 'set "OSGEO4W_ROOT=' + ($env:OSGEO4W_ROOT) + '" && '
+            $cmd += 'set "OSGEO4W_ROOT_MSYS=' + ($env:OSGEO4W_ROOT_MSYS) + '" && '
+            $cmd += '"' + $TextReplaceExe + '" -std -t bin\\setup.bat'
+            if ($Script:REINIT_DEBUG) { Write-Log "  Debug: cmd fallback command: $cmd" }
+            $output = & cmd /c $cmd 2>&1
+            $output | Out-File -FilePath $LOG -Append -Encoding UTF8
+            if ($LASTEXITCODE -ne 0) {
+                Write-Log "ERROR: textreplace failed (exit $LASTEXITCODE). See log for details."
+                Copy-Item $LOG $LATESTLOG -Force
+                exit 1
+            } else {
+                Write-Log "SUCCESS: textreplace completed successfully (cmd fallback)"
+            }
         }
     } catch {
         Write-Log "ERROR: textreplace exception: $_"
