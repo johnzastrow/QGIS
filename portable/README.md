@@ -1,333 +1,374 @@
-Portable helper files for reinitializing a copied QGIS tree
-=======================================================
+# Portable QGIS Reinitialization Tools
 
-Purpose
--------
-This `portable/` directory contains a minimal, self-contained helper set you
-can copy into a fresh QGIS portable installation to repair the runtime after
-moving the tree to a new path or machine.
+This directory contains tools to reinitialize a portable QGIS installation after copying it to a new location or computer.
 
-Why this is needed
--------------------
-OSGeo4W-style portable QGIS uses small generated wrapper and environment
-files that embed absolute paths at install/postinstall time. When the tree is
-copied to a different path these generated files still point at the original
-path and the QGIS binary may fail to load with DLL lookup errors (for
-example: "qgis_app.dll not found").
+## Table of Contents
 
-What these helpers do
----------------------
-- `reinit_portable.bat` — attempts to recreate the generated files by running
-  `bin\textreplace.exe` (if present) to rewrite `bin\setup.bat`, then
-  calling the generated `bin\setup.bat` or falling back to
-  `etc\postinstall\setup.bat`. It also runs `bin\qgis.bat --postinstall`
-  if the wrapper exists. All output is written to `var\log\reinit-<ts>.log`
-  and to `var\log\reinit-latest.log`.
+- [Why This Is Needed](#why-this-is-needed)
+- [Available Scripts](#available-scripts)
+- [Quick Start](#quick-start)
+- [Detailed Usage](#detailed-usage)
+- [What Gets Updated](#what-gets-updated)
+- [Validation Checks](#validation-checks)
+- [Troubleshooting](#troubleshooting)
+- [Technical Details](#technical-details)
 
-How to use this directory
--------------------------
+---
 
-1. Copy the entire `portable/` directory into the root of the QGIS tree you
-  moved (so there is now `...\QGIS\portable\reinit_portable.bat`).
+## Why This Is Needed
 
-1. Open an elevated Command Prompt in the QGIS root and run:
+OSGeo4W-style portable QGIS installations contain **generated files that embed absolute paths** to the installation directory. These files are created during the initial installation and include:
 
-```bat
-portable\reinit_portable.bat
+- `bin\setup.bat` - Generated setup script with hardcoded paths
+- `bin\qgis-bin.env` - Environment file with PATH, PYTHONHOME, QT_PLUGIN_PATH, etc.
+- `apps\Python312\Scripts\*.py` - Python scripts with shebang lines pointing to the Python interpreter
+- `apps\qgis\bin\qgis.reg` - Registry file with file association paths
+
+**When you copy the QGIS tree to a new location**, these files still reference the **old path**, causing failures such as:
+- ❌ `qgis_app.dll not found` errors
+- ❌ Python scripts fail to execute
+- ❌ Missing DLL errors when launching QGIS
+
+The reinit scripts in this directory **regenerate all these files** with the correct paths for the new location.
+
+---
+
+## Available Scripts
+
+This directory provides **two reinit scripts** with identical functionality but different user experiences:
+
+### `interactive_reinit.bat` - Interactive Mode ✨
+
+**Best for**: Manual/interactive use by end users
+
+**Features**:
+- ✅ Real-time console progress updates
+- ✅ Shows what's happening at each step
+- ✅ Displays validation results immediately
+- ✅ Provides helpful reminders on how to launch QGIS
+- ✅ Comprehensive logging to `var\log\reinit-interactive-*.log`
+
+**Console Output Example**:
+```
+=== QGIS portable reinitializer (INTERACTIVE) ===
+Repository root: D:\PortableQGIS
+[Step 1/4] Running textreplace to update templates...
+SUCCESS: textreplace completed successfully
+[Step 2/4] Calling bin\setup.bat to finish setup...
+SUCCESS: bin\setup.bat completed
+...
 ```
 
-1. When the script completes, check `var\log\reinit-latest.log` for a
-  short summary and `var\log\reinit-<timestamp>.log` for the full
-  output.
-
-Safety and limitations
-
-- The script is conservative: it prefers `bin\setup.bat` if generated, and
-  falls back to packaged `etc\postinstall\setup.bat` only when necessary.
-
-If something goes wrong
-
-- If the script fails, copy the generated `var\log\reinit-<timestamp>.log` and
-  attach it to an issue or support request so the exact command failure can be
-  diagnosed.
-
-Authors
-
-- Small helper set created to make portable QGIS trees relocatable without
-  rebuilding or reinstalling.
-
-Safety and limitations
-----------------------
-- The script is conservative: it prefers `bin\setup.bat` if generated, and
-  falls back to packaged `etc\postinstall\setup.bat` only when necessary.
-- If `bin\textreplace.exe` is not present in your tree the script will skip
-  template patching and rely on the postinstall fallback.
-- This helper does not modify system-wide configuration; it only touches
-  files under the QGIS tree.
-
-If something goes wrong
------------------------
-If the script fails, copy the generated `var\log\reinit-<timestamp>.log` and
-attach it to an issue or support request so the exact command failure can be
-diagnosed.
-
-Authors
--------
-Small helper set created to make portable QGIS trees relocatable without
-rebuilding or reinstalling.
-
-
-Detailed Comparison: bin/reinit.bat vs portable/reinit_portable.bat
-
-  📊 Feature-by-Feature Comparison
-
-  | Feature           | bin/reinit.bat                            | portable/reinit_portable.bat  | Winner
-     |
-  |-------------------|-------------------------------------------|-------------------------------|-----------------
-  ---|
-  | Lines of code     | 123 lines                                 | 80 lines                      | Portable
-  (simpler) |
-  | Script location   | bin/ directory                            | portable/ directory           | -
-     |
-  | Root resolution   | SCRIPT_DIR/..\ (parent of bin)            | %~dp0..\ (parent of portable) | ✅ Equal
-      |
-  | Console output    | ✅ Rich: Header, progress updates, results | ❌ Minimal: Only final message | bin/reinit.bat
-       |
-  | User feedback     | ✅ Real-time via :log function             | ❌ Silent until completion     | bin/reinit.bat
-       |
-  | Logging           | ✅ Dual: timestamped + latest              | ✅ Dual: timestamped + latest  | ✅ Equal
-        |
-  | Error handling    | ✅ Verbose with context                    | ❌ Terse messages              | bin/reinit.bat
-       |
-  | Validation checks | ✅ 2 checks: qgis_app.dll + qgis-bin.env   | ❌ 1 check: qgis_app.dll only  | bin/reinit.bat
-       |
-  | Path safety       | ✅ Quoted: "%REPO_ROOT%\bin\..."           | ⚠️ Relative: bin\...          | bin/reinit.bat
-      |
-  | Exit codes        | ✅ Documented: 0, 1, 2                     | ✅ Same: 0, 1, 2               | ✅ Equal
-        |
-
-  ---
-  🔍 Core Functional Sequence (Both Identical)
-
-  Both scripts perform the exact same operations in the exact same order:
-
-  flowchart TD
-      START[Script starts] --> ROOT[Compute REPO_ROOT]
-      ROOT --> MKDIR[Create var/log if needed]
-      MKDIR --> TR_CHECK{textreplace.exe<br/>exists?}
-
-      TR_CHECK -->|Yes| TR[Run: bin\textreplace.exe -std -t bin\setup.bat]
-      TR_CHECK -->|No| SKIP_TR[Skip textreplace]
-
-      TR --> SETUP_CHECK
-      SKIP_TR --> SETUP_CHECK
-
-      SETUP_CHECK{bin\setup.bat<br/>exists?}
-      SETUP_CHECK -->|Yes| RUN_SETUP[Call: bin\setup.bat]
-      SETUP_CHECK -->|No| FALLBACK{etc\postinstall\setup.bat<br/>exists?}
-
-      FALLBACK -->|Yes| RUN_FALLBACK[Call: etc\postinstall\setup.bat]
-      FALLBACK -->|No| ERROR[EXIT 2: No setup script]
-
-      RUN_SETUP --> QW_CHECK
-      RUN_FALLBACK --> QW_CHECK
-
-      QW_CHECK{bin\qgis.bat<br/>exists?}
-      QW_CHECK -->|Yes| RUN_QW[Call: bin\qgis.bat --postinstall]
-      QW_CHECK -->|No| SKIP_QW[Skip qgis postinstall]
-
-      RUN_QW --> VALIDATE
-      SKIP_QW --> VALIDATE
-
-      VALIDATE[Validate qgis_app.dll exists]
-      VALIDATE --> SUCCESS[EXIT 0: Success]
-
-      style TR fill:#fff4e1
-      style RUN_SETUP fill:#e1f5ff
-      style RUN_FALLBACK fill:#e1f5ff
-      style RUN_QW fill:#e1f5ff
-      style SUCCESS fill:#d4edda
-      style ERROR fill:#f8d7da
-
-  Verdict: ✅ Core functionality is 100% identical
-
-
-  📋 Detailed Differences
-
-  1. User Experience During Execution
-
-  bin/reinit.bat (Interactive & Verbose):
-  === QGIS portable reinitializer ===
-  Repository root: D:\newQGIS
-  Log: D:\newQGIS\var\log\reinit-2025-10-20_14-30-15.log
-  Latest: D:\newQGIS\var\log\reinit-latest.log
-  Repository root: D:\newQGIS
-  Running textreplace to update templates...
-  textreplace completed successfully
-  Calling bin\setup.bat to finish setup...
-  Running qgis postinstall wrapper (qgis.bat --postinstall)...
-  OK: apps\qgis\bin\qgis_app.dll exists
-  OK: bin\qgis-bin.env exists
-  === Reinitialization complete ===
-
-  portable/reinit_portable.bat (Silent):
-  Reinit finished. See var\log\reinit-latest.log for summary and var\log\reinit-2025-10-20_143015.log for details.
-
-  Impact: bin/reinit.bat provides real-time progress feedback, making it easier to diagnose where failures occur.
-  portable/reinit_portable.bat requires checking logs.
-
-  ---
-  2. Timestamp Generation Method
-
-  bin/reinit.bat - Simple string replacement:
-  set "datetime=%DATE%_%TIME%"
-  set "datetime=%datetime:/=-%"
-  set "datetime=%datetime::=-%"
-  set "datetime=%datetime: =_%"
-  set "datetime=%datetime:,=-%"
-  set "datetime=%datetime:.=-%"
-  Result: reinit-Mon_10-20-2025__6-21-20-76.log (varies by locale)
-
-  portable/reinit_portable.bat - Token parsing with padding:
-  for /f "tokens=1-4 delims=/ .: " %%a in ("%date% %time%") do (
-      set "Y=%%d"
-      set "M=00%%b"
-      set "D=00%%c"
-      set "T=%%e"
-  )
-  set "M=%M:~-2%"
-  set "D=%D:~-2%"
-  set "TS=%Y%-%M%-%D%_%T%"
-  Result: reinit-2025-10-20_06-21-20.log (more consistent format)
-
-  Impact: portable/reinit_portable.bat has cleaner timestamp format, but both work.
-
-  ---
-  3. Validation Checks
-
-  bin/reinit.bat:
-  REM Check 1: Core DLL
-  if exist "%REPO_ROOT%\apps\qgis\bin\qgis_app.dll" (
-    call :log "OK: apps\qgis\bin\qgis_app.dll exists"
-  ) else (
-    call :log "WARNING: apps\qgis\bin\qgis_app.dll not found..."
-  )
-
-  REM Check 2: Generated environment file
-  if exist "%REPO_ROOT%\bin\qgis-bin.env" (
-    call :log "OK: bin\qgis-bin.env exists"
-  ) else (
-    call :log "WARNING: bin\qgis-bin.env not created..."
-  )
-
-  portable/reinit_portable.bat:
-  REM Only checks qgis_app.dll
-  if exist "apps\qgis\bin\qgis_app.dll" (
-      echo OK: qgis_app.dll present >> "%LOG%"
-  ) else (
-      echo WARNING: qgis_app.dll missing >> "%LOG%"
-  )
-
-  Impact: bin/reinit.bat has more thorough validation - catches cases where setup ran but didn't create
-  qgis-bin.env.
-
-  ---
-  4. Path Construction
-
-  bin/reinit.bat - Absolute paths with quotes:
-  "%REPO_ROOT%\bin\textreplace.exe" -std -t bin\setup.bat
-  call "%REPO_ROOT%\bin\setup.bat"
-  call "%REPO_ROOT%\bin\qgis.bat" --postinstall
-
-  portable/reinit_portable.bat - Relative paths:
-  bin\textreplace.exe -std -t bin\setup.bat
-  call "bin\setup.bat"
-  call "bin\qgis.bat" --postinstall
-
-  Impact: bin/reinit.bat is more robust - works even if current directory changes. portable/reinit_portable.bat
-  assumes pushd "%REPO_ROOT%" keeps context (which it does via pushd).
-
-  ---
-  ✅ Is portable/reinit_portable.bat Suitable for Updating a Moved Installation?
-
-  Answer: YES ✅ It is functionally suitable, with caveats:
-
-  Strengths:
-
-  1. ✅ Performs all required operations: textreplace → setup → qgis postinstall
-  2. ✅ Handles missing files gracefully: Falls back to etc\postinstall\setup.bat
-  3. ✅ Creates proper logs: Both timestamped and latest
-  4. ✅ Shorter and simpler: 43 lines less code
-  5. ✅ Cleaner timestamp format: More predictable log filenames
-  6. ✅ Self-contained: Doesn't rely on external functions
-
-  Weaknesses:
-
-  1. ❌ No user feedback during execution: Silent until completion (frustrating for interactive use)
-  2. ❌ Less validation: Doesn't check if bin\qgis-bin.env was created
-  3. ❌ No progress indication: User doesn't know if script is hung or working
-  4. ❌ Less helpful error messages: Requires reading logs to understand failures
-
-  ---
-  🎯 Recommendations
-
-  Use portable/reinit_portable.bat when:
-
-  - ✅ Running automated/scripted deployments
-  - ✅ Embedding in installers or deployment tools
-  - ✅ You want simpler, more maintainable code
-  - ✅ Log file inspection is part of your workflow
-
-  Use bin/reinit.bat when:
-
-  - ✅ Running interactively (by end users)
-  - ✅ Troubleshooting issues (real-time feedback helps)
-  - ✅ Need thorough validation (checks both DLL and env file)
-  - ✅ Want user-friendly progress updates
-
-  ---
-  🔧 Testing Both Scripts on newQGIS
-
-  To validate both scripts work correctly on newQGIS:
-
-  REM Test 1: Using portable/reinit_portable.bat
-  cd /d C:\Users\br8kw\Downloads\newQGIS
-  portable\reinit_portable.bat
-  type var\log\reinit-latest.log
-
-  REM Test 2: Copy bin/reinit.bat to newQGIS and run
-  copy ..\QGIS_orig\bin\reinit.bat bin\
-  bin\reinit.bat
-
-  REM Compare results
-  fc bin\qgis-bin.env ..\QGIS_orig\bin\qgis-bin.env
-
-  ---
-  📝 Suggested Enhancement
-
-  To get the best of both worlds, I'd recommend enhancing portable/reinit_portable.bat with minimal console output:
-
-  REM Add after line 28:
-  echo Reinitializing QGIS tree at %REPO_ROOT%
-  echo [1/4] Running textreplace...
-  REM ... existing textreplace code ...
-  echo [2/4] Running setup scripts...
-  REM ... existing setup code ...
-  echo [3/4] Running QGIS postinstall...
-  REM ... existing qgis.bat code ...
-  echo [4/4] Validating installation...
-  REM ... existing validation code ...
-  echo Complete! See logs for details.
-
-  This would provide progress feedback while keeping the script simple and portable.
-
-  ---
-  ✅ Final Verdict
-
-  Both scripts are functionally equivalent and suitable for reinitializing a moved QGIS installation.
-
-  - portable/reinit_portable.bat: ✅ Suitable - simpler, automated-friendly, but silent
-  - bin/reinit.bat: ✅ Preferred - same functionality + better UX + thorough validation
-
-  For newQGIS, either script will work. I'd recommend using bin/reinit.bat for its superior user feedback and
-  validation, unless you're automating the process.
+### `silent_reinit.bat` - Silent Mode 🤫
+
+**Best for**: Automated deployments, scripts, installers
+
+**Features**:
+- ✅ Completely silent operation (no console spam)
+- ✅ Only shows final status message
+- ✅ Identical functionality to interactive mode
+- ✅ Comprehensive logging to `var\log\reinit-silent-*.log`
+- ✅ Returns proper exit codes for automation
+
+**Console Output Example**:
+```
+Reinitialization complete. See var\log\reinit-silent-latest.log for details.
+```
+
+---
+
+## Quick Start
+
+### Step 1: Copy the `portable/` Directory
+
+When you copy your QGIS installation to a new location, make sure the `portable/` directory is included in the copy.
+
+### Step 2: Run a Reinit Script
+
+Open Command Prompt in the QGIS root directory and run:
+
+**For interactive feedback** (recommended for manual use):
+```bat
+portable\interactive_reinit.bat
+```
+
+**For silent operation** (recommended for automation):
+```bat
+portable\silent_reinit.bat
+```
+
+### Step 3: Launch QGIS
+
+After reinitialization completes successfully, launch QGIS using the wrapper:
+
+```bat
+bin\qgis.bat
+```
+
+⚠️ **Important**: Always use `bin\qgis.bat`, **NOT** `bin\qgis-bin.exe` directly!
+
+---
+
+## Detailed Usage
+
+### Running from the QGIS Directory
+
+```bat
+REM Navigate to the copied QGIS installation
+cd /d D:\PortableApps\QGIS
+
+REM Run interactive reinit
+portable\interactive_reinit.bat
+
+REM Check the results
+type var\log\reinit-interactive-latest.log
+
+REM Launch QGIS
+bin\qgis.bat
+```
+
+### Running from Anywhere
+
+```bat
+REM Run with absolute path
+"D:\PortableApps\QGIS\portable\interactive_reinit.bat"
+
+REM Launch QGIS with absolute path
+"D:\PortableApps\QGIS\bin\qgis.bat"
+```
+
+### Automated Deployment Example
+
+```bat
+@echo off
+REM deploy_qgis.bat - Automated QGIS deployment script
+
+set "SOURCE=\\server\share\QGIS_Template"
+set "TARGET=C:\Apps\QGIS"
+
+echo Copying QGIS installation...
+xcopy /E /I /H /K /Q "%SOURCE%" "%TARGET%"
+
+echo Reinitializing QGIS at new location...
+cd /d "%TARGET%"
+call portable\silent_reinit.bat
+
+if %ERRORLEVEL% equ 0 (
+    echo Deployment successful!
+    echo Launch QGIS with: "%TARGET%\bin\qgis.bat"
+) else (
+    echo Deployment failed with %ERRORLEVEL% errors.
+    echo Check log: "%TARGET%\var\log\reinit-silent-latest.log"
+    exit /b %ERRORLEVEL%
+)
+```
+
+---
+
+## What Gets Updated
+
+The reinit scripts perform these operations in sequence:
+
+### [Step 1/4] Template Regeneration
+
+**Action**: Runs `bin\textreplace.exe -std -t bin\setup.bat`
+
+**Purpose**: Regenerates `bin\setup.bat` from templates, embedding the new absolute path
+
+**Input**: Template files (`.tmpl`) in `apps\Python312\Scripts\`, `setup\`, etc.
+
+**Output**: `bin\setup.bat` with current installation path
+
+### [Step 2/4] Setup Execution
+
+**Action**: Calls `bin\setup.bat` (or falls back to `etc\postinstall\setup.bat`)
+
+**Purpose**: Runs per-install setup actions to create environment files
+
+**Output**:
+- `bin\qgis-bin.env` - Environment variables file
+- Updated Python script shebangs
+- Registry file generation
+- Cleanup of old `.pyc` files
+
+### [Step 3/4] QGIS Postinstall
+
+**Action**: Calls `bin\qgis.bat --postinstall`
+
+**Purpose**: Finalizes QGIS-specific wrapper configuration
+
+**Output**:
+- Updated `apps\qgis\bin\qgis.reg` with correct paths
+- Registered file associations (optional)
+
+### [Step 4/4] Validation
+
+**Action**: Checks for presence of critical files
+
+**Purpose**: Ensures the reinitialization completed successfully
+
+**Checks**: See [Validation Checks](#validation-checks) section below
+
+---
+
+## Validation Checks
+
+Both scripts perform **8 comprehensive validation checks**:
+
+| # | Check | Type | What It Validates |
+|---|-------|------|-------------------|
+| 1 | `apps\qgis\bin\qgis_app.dll` | **ERROR** | Core QGIS library present |
+| 2 | `bin\qgis-bin.env` | WARNING | Environment file created |
+| 3 | `bin\setup.bat` | WARNING | Setup script generated |
+| 4 | `bin\qgis.bat` | **ERROR** | QGIS wrapper present |
+| 5 | `apps\Python312\python.exe` | **ERROR** | Python runtime present |
+| 6 | `apps\Python312\Scripts\gdal_calc.py` | WARNING | Sample Python script present |
+| 7 | `etc\ini\gdal.bat` | **ERROR** | Environment init scripts present |
+| 8 | `bin\o4w_env.bat` | **ERROR** | Environment bootstrap present |
+
+**ERROR** = Critical failure, QGIS won't work
+**WARNING** = Non-critical, but may indicate issues
+
+### Exit Codes
+
+The scripts return exit codes for automation:
+
+- `0` - Success, all critical checks passed
+- `1` - textreplace.exe failed
+- `2` - No setup script found
+- `>0` - Number of validation errors encountered
+
+---
+
+## Troubleshooting
+
+### Problem: "textreplace.exe not found"
+
+**Cause**: Some QGIS distributions don't include `bin\textreplace.exe`
+
+**Solution**: The script will automatically fall back to `etc\postinstall\setup.bat`. This is normal and the reinitialization should still succeed.
+
+### Problem: "qgis_app.dll not found" after reinit
+
+**Symptoms**: Validation shows ERROR for `qgis_app.dll`
+
+**Possible Causes**:
+1. Incomplete copy - not all files were copied from source
+2. Corrupted installation
+
+**Solutions**:
+1. Re-copy the entire QGIS directory from the original source
+2. Verify the file exists: `dir apps\qgis\bin\qgis_app.dll`
+3. Check the reinit log for details: `type var\log\reinit-*-latest.log`
+
+### Problem: QGIS still fails to launch after reinit
+
+**Symptoms**: Even after successful reinit, QGIS won't start
+
+**Checklist**:
+1. ✅ Are you using `bin\qgis.bat` (NOT `qgis-bin.exe`)?
+2. ✅ Did reinit complete without errors? Check exit code and logs
+3. ✅ Does `bin\qgis-bin.env` exist and contain the correct path?
+4. ✅ Run validation manually:
+   ```bat
+   apps\Python312\python.exe tools\validate_runtime.py
+   ```
+
+### Problem: Python scripts fail with "python3.exe not found"
+
+**Cause**: Python script shebangs still point to old location
+
+**Check**:
+```bat
+head -1 apps\Python312\Scripts\gdal_calc.py
+```
+Should show current path like: `#! D:\PortableQGIS\apps\Python312\python3.exe`
+
+**Solution**: Run reinit again to regenerate Python script shebangs
+
+### Problem: Permission denied or access errors
+
+**Cause**: Windows permissions or file locks
+
+**Solutions**:
+1. Run Command Prompt as Administrator
+2. Close QGIS if it's running
+3. Disable antivirus temporarily (some AV software blocks batch script operations)
+4. Check if any files are marked read-only: `attrib /S`
+
+---
+
+## Technical Details
+
+### Files Modified During Reinit
+
+The following files are **regenerated** with updated paths:
+
+**Always Modified**:
+- `apps\Python312\Scripts\*.py` - Shebang lines updated
+- `apps\qgis\bin\qgis.reg` - Registry paths updated
+
+**Conditionally Modified** (depending on what `bin\setup.bat` does):
+- `bin\qgis-bin.env` - May be created or updated
+- `bin\setup.bat` - Regenerated from templates (if textreplace.exe exists)
+
+### Files That DON'T Need Regeneration
+
+These files use **dynamic path resolution** via `%OSGEO4W_ROOT%`:
+- `etc\ini\*.bat` - All environment initialization scripts
+- `bin\o4w_env.bat` - Computes OSGEO4W_ROOT at runtime
+- `bin\qgis.bat` - Uses OSGEO4W_ROOT from o4w_env.bat
+
+This is why the tree is **portable** - most files adapt automatically!
+
+### Log File Locations
+
+Both scripts write logs to `var\log\`:
+
+**Interactive Mode**:
+- `var\log\reinit-interactive-<timestamp>.log` - Full detailed log
+- `var\log\reinit-interactive-latest.log` - Copy of most recent run
+
+**Silent Mode**:
+- `var\log\reinit-silent-<timestamp>.log` - Full detailed log
+- `var\log\reinit-silent-latest.log` - Copy of most recent run
+
+### Timestamp Format
+
+Both scripts use consistent timestamp format: `YYYY-MM-DD_HHMMSS`
+
+Example: `reinit-interactive-2025-10-20_143052.log`
+
+---
+
+## Safety Notes
+
+- ✅ **Safe to run multiple times** - Rerunning reinit is harmless
+- ✅ **Non-destructive** - Only modifies generated files, not core QGIS files
+- ✅ **No system-wide changes** - Only affects files within the QGIS tree
+- ✅ **Reversible** - Can always re-copy from original installation
+- ⚠️ **Administrator rights** - May be required on some systems for registry operations
+
+---
+
+## Additional Resources
+
+For more detailed information about the QGIS portable installation system:
+
+- **POSTINSTALL.md** (in repository root) - Detailed documentation of the postinstall system
+- **CLAUDE.md** (in repository root) - Developer guide for working with this repository
+- **var\log\setup.log.full** - Original installation log showing what the installer did
+
+---
+
+## Authors & License
+
+These portable reinit tools are designed to make QGIS portable installations truly portable and easy to deploy across multiple machines without requiring reinstallation.
+
+**License**: Same as QGIS (GNU General Public License)
+
+---
+
+**Last Updated**: 2025-10-20
+**Compatible with**: QGIS 3.44.x OSGeo4W portable installations
+**Maintained by**: Repository contributors
