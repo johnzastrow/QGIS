@@ -351,6 +351,102 @@ Example: `reinit-interactive-2025-10-20_143052.log`
 
 ---
 
+## Example Run  October 24, 2025
+
+Note: Sadly, this simple script suggested by a QGIS maintainer produced no effect, and I couldn't see any debug information to see what was happening.
+
+```
+REM RunAtlas.bat
+call "%~dp0\bin\qgis.bat" --postinstall
+"%~dp0\bin\qgis.bat" --profiles-path "%~dp0\Profiles"  --profile "Viewer2" --project "geopackage:%~dp0\data.gpkg?projectName=main_project"
+```
+
+
+This is what a run of interactive_reinit.ps1 version 1.1.7 looked like and ultimately produced a running QGIS after copying it to another path, where initially it failed.
+
+```bash
+PS W:\deleteme\portable_installation> powershell -ExecutionPolicy Bypass -File .\interactive_reinit.ps1 -Debug
+=== QGIS portable reinitializer (INTERACTIVE) v1.1.7 ===
+Repository root: W:\deleteme
+Log: W:\deleteme\var\log\reinit-interactive-2025-10-24_152459.log
+Latest: W:\deleteme\var\log\reinit-interactive-latest.log
+
+Script: portable\interactive_reinit.ps1 v1.1.7
+Repository root: W:\deleteme
+OSGEO4W_ROOT set to: W:\deleteme
+
+[Step 1/4] Note: textreplace.exe not found in bin\ - skipping template replacement.
+
+ERROR: No setup script found (bin\setup.bat or etc\postinstall\setup.bat). Cannot reinitialize automatically.
+PS W:\deleteme\portable_installation> cd bin
+PS W:\deleteme\portable_installation\bin> powershell -ExecutionPolicy Bypass -File .\interactive_reinit.ps1 -Debug
+=== QGIS portable reinitializer (INTERACTIVE) v1.1.7 ===
+Repository root: W:\deleteme\portable_installation
+Log: W:\deleteme\portable_installation\var\log\reinit-interactive-2025-10-24_152610.log
+Latest: W:\deleteme\portable_installation\var\log\reinit-interactive-latest.log
+
+Script: portable\interactive_reinit.ps1 v1.1.7
+Repository root: W:\deleteme\portable_installation
+OSGEO4W_ROOT set to: W:\deleteme\portable_installation
+
+[Step 1/4] Running textreplace to update templates...
+  Debug: Attempting direct call to textreplace (PowerShell) first...
+  Debug: calling textreplace directly: "W:\deleteme\portable_installation\bin\textreplace.exe" -std -t bin\setup.bat
+  Debug: direct call returned exit 0 or indicated missing env; falling back to cmd.exe wrapper...
+  Debug: cmd fallback command: set "OSGEO4W_ROOT=W:\deleteme\portable_installation" && set "OSGEO4W_ROOT_MSYS=W:/deleteme/portable_installation" && "W:\deleteme\portable_installation\bin\textreplace.exe" -std -t bin\\setup.bat
+SUCCESS: textreplace completed successfully (cmd fallback)
+
+[Step 2/4] bin\setup.bat would launch GUI installer (osgeo4w-setup.exe) or references it; skipping automatic run.
+  To complete installation non-interactively, run RunQGIS.bat --yes or use the -y flag where supported.
+  Alternatively, run the installer interactively: W:\deleteme\portable_installation\bin\osgeo4w-setup.exe
+
+[Step 2.5] Ensure bin\qgis-bin.env matches this tree (backup + update)...
+  Backed up existing qgis-bin.env to: W:\deleteme\portable_installation\bin\qgis-bin.env.bak-2025-10-24_152610
+  Debug: textreplace available, attempting to regenerate env via textreplace...
+  Debug: textreplace did not produce env; falling back to safe replace
+
+[Step 3/4] Running qgis postinstall wrapper (qgis.bat --postinstall)...
+SUCCESS: qgis postinstall completed
+
+[Step 4/4] Validating installation integrity...
+  [OK] apps\qgis\bin\qgis_app.dll exists
+  [OK] bin\qgis-bin.env exists
+  [OK] bin\setup.bat exists
+  [OK] bin\qgis.bat exists
+  [OK] apps\Python312\python.exe exists
+  [OK] apps\Python312\Scripts\gdal_calc.py exists
+  [OK] etc\ini\gdal.bat exists
+  [OK] bin\o4w_env.bat exists
+
+=== Reinitialization complete - All critical checks passed ===
+
+Reinitialization complete. Check above for any errors.
+See W:\deleteme\portable_installation\var\log\reinit-interactive-latest.log for latest summary.
+
+============================================================
+IMPORTANT: How to launch QGIS from this location
+============================================================
+
+Always use the wrapper script (NOT qgis-bin.exe directly):
+  W:\deleteme\portable_installation\bin\qgis.bat
+
+Example launch commands:
+  cd /d "W:\deleteme\portable_installation"
+  bin\qgis.bat
+
+Or from anywhere:
+  "W:\deleteme\portable_installation\bin\qgis.bat"
+
+DO NOT run qgis-bin.exe directly - it will fail with DLL errors!
+The wrapper sets up the environment (PATH, PYTHONHOME, QT_PLUGIN_PATH, etc.)
+============================================================
+
+```
+
+
+
+
+
 ## Additional Resources
 
 For more detailed information about the QGIS portable installation system:
@@ -372,3 +468,4 @@ These portable reinit tools are designed to make QGIS portable installations tru
 **Last Updated**: 2025-10-20
 **Compatible with**: QGIS 3.44.x OSGeo4W portable installations
 **Maintained by**: Repository contributors
+
