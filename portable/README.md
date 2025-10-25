@@ -77,7 +77,7 @@ Reinitialization complete. See var\log\reinit-silent-latest.log for details.
 
 ---
 
-## Quick Start
+## Quick Start - INSTRUCTIONS ARE OLD. I need to update them 10/24.
 
 ### Step 1: Copy the `portable/` Directory
 
@@ -468,4 +468,5 @@ These portable reinit tools are designed to make QGIS portable installations tru
 **Last Updated**: 2025-10-20
 **Compatible with**: QGIS 3.44.x OSGeo4W portable installations
 **Maintained by**: Repository contributors
+
 
